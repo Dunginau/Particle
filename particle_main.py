@@ -1,65 +1,116 @@
 import pygame
+import math
 
-# 1. THE PARTICLE PROPERTIES
-PARTICLE_COLOR = (0, 255, 0) # Green
-PARTICLE_RADIUS = 10
-m=1.0
+# ── SCENE SETUP ────────────────────────────────────────────────────────────────
+WIDTH, HEIGHT = 500, 800
+FPS           = 60
+BACKGROUND    = (10, 10, 10)
+RADIUS        = 10
 
-# 1.1. Define the particle properties
-x, y = 400.0, 300.0  # Start in the middle
-vx, vy = 0.0, 70.0 # Initial velocity (pixels per second)
-ax, ay = 0.0, 0.0 # Acceleration (pixels per second squared, e.g., gravity)
-Fx, Fy = 0.0, 100.0 # Force (not used in this simple example, but can be used to calculate acceleration)
+# ── PHYSICS CONSTANTS ──────────────────────────────────────────────────────────
+K        = 8.99e9   # Coulomb's constant  (scaled below via charge magnitude)
+SOFTENING = 20.0    # minimum distance (px) to avoid division-by-zero
+SCALE     = 1e-4    # scales raw force into pixel-space acceleration
 
-dt = 0.0 # Time step (in seconds)
+# ── PARTICLES ─────────────────────────────────────────────────────────────────
+#    Each particle: [x, y, vx, vy, charge, mass]
+particles = [
+    [200.0, 500.0, 80.0, -60.0,  +1.0, 1.0],   # positive (red)
+    [700.0, 500.0, -80.0, -60.0,  +1.0, 1.0],   # negative (blue)\
+    [200.0, 200.0, 80.0, 70.0,  -1.0, 1.0],   # positive (red)
+    [700.0, 200.0, -80.0, 90.0,  -1.0, 1.0],   # negative (blue)
+]
 
-# 1.2. Scene setup variables
-WIDTH, HEIGHT = 800, 600
-FPS =  60 # Frames per second (not used directly, but can be used to control dt)
+# ── COULOMB'S LAW ─────────────────────────────────────────────────────────────
+def coulombs_forces(particles):
+    """Return a list of (fx, fy) net force for each particle."""
+    n      = len(particles)
+    forces = [[0.0, 0.0] for _ in range(n)]
 
-# 2. Setup the environment
+    for i in range(n):
+        for j in range(i + 1, n):
+            xi, yi, _, _, qi, _ = particles[i]
+            xj, yj, _, _, qj, _ = particles[j]
+
+            dx = xj - xi
+            dy = yj - yi
+            r  = max(math.hypot(dx, dy), SOFTENING)   # softening applied here
+
+            # Coulomb magnitude: F = K * q1 * q2 / r²
+            F_mag = K * qi * qj / (r ** 2)
+
+            # Cartesian components (unit vector dx/r, dy/r)
+            fx = F_mag * (dx / r)
+            fy = F_mag * (dy / r)
+
+            # Newton's third law — equal and opposite
+            forces[i][0] -= fx
+            forces[i][1] -= fy
+            forces[j][0] += fx
+            forces[j][1] += fy
+
+    return forces
+
+# ── MOVEMENT ──────────────────────────────────────────────────────────────────
+def update_particles(particles, forces, dt):
+    """Euler integration: update velocity then position. Bounce on edges."""
+    for i, p in enumerate(particles):
+        x, y, vx, vy, q, m = p
+        fx, fy = forces[i]
+
+        # Acceleration from F = ma  (SCALE brings force into pixel-space)
+        ax = (fx * SCALE) / m
+        ay = (fy * SCALE) / m
+
+        # Euler step — velocity
+        vx += ax * dt
+        vy += ay * dt
+
+        # Euler step — position
+        x += vx * dt
+        y += vy * dt
+
+        # Boundary bounce (elastic)
+        if x - RADIUS < 0:
+            x  = RADIUS
+            vx = abs(vx)
+        elif x + RADIUS > WIDTH:
+            x  = WIDTH - RADIUS
+            vx = -abs(vx)
+
+        if y - RADIUS < 0:
+            y  = RADIUS
+            vy = abs(vy)
+        elif y + RADIUS > HEIGHT:
+            y  = HEIGHT - RADIUS
+            vy = -abs(vy)
+
+        particles[i] = [x, y, vx, vy, q, m]
+
+# ── DRAW ──────────────────────────────────────────────────────────────────────
+def draw(screen, particles):
+    screen.fill(BACKGROUND)
+    for x, y, _, _, q, _ in particles:
+        color = (220, 60, 60) if q > 0 else (60, 100, 220)
+        pygame.draw.circle(screen, color, (int(x), int(y)), RADIUS)
+    pygame.display.flip()
+
+# ── MAIN LOOP ─────────────────────────────────────────────────────────────────
 pygame.init()
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
-clock = pygame.time.Clock()
+pygame.display.set_caption("Coulomb Simulation")
+clock  = pygame.time.Clock()
 
 running = True
 while running:
-    dt = clock.tick(FPS) / 1000.0 # Increase > 
+    dt = clock.tick(FPS) / 1000.0
 
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
 
-    # 3. THE PHYSICS STEP
-    # Update position based on velocity and time passed
-    ax = Fx / m
-    ay = Fy / m
-    
-    vx += ax*dt
-    vy += ay*dt
-    
-    x += vx * dt
-    y += vy * dt
-
-    if x - PARTICLE_RADIUS < 0: # Left wall collision
-        x = PARTICLE_RADIUS
-        vx *= -1 # Reverse velocity
-    if x + PARTICLE_RADIUS > WIDTH: # Right wall collision
-        x = WIDTH - PARTICLE_RADIUS
-        vx *= -1 # Reverse velocity
-    if y - PARTICLE_RADIUS < 0: # Top wall collision
-        y = PARTICLE_RADIUS
-        vy *= -1 # Reverse velocity
-    if y + PARTICLE_RADIUS > HEIGHT: # Bottom wall collision
-        y = HEIGHT - PARTICLE_RADIUS
-        vy *= -1 # Reverse velocity
-
-    # 4. RENDER SCENE
-    screen.fill((30, 30, 30)) # Clear screen with dark grey
-    draw_y = HEIGHT - y
-
-    # 4.1. RENDER OBJECTS
-    pygame.draw.circle(screen, PARTICLE_COLOR, (int(x), int(draw_y)), PARTICLE_RADIUS) # Draw green particle
-    pygame.display.flip() # Update display
+    forces = coulombs_forces(particles)
+    update_particles(particles, forces, dt)
+    draw(screen, particles)
 
 pygame.quit()
