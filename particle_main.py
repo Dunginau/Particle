@@ -15,7 +15,8 @@ SCALE     = 1e-4    # scales all forces into pixel-space acceleration
 # ── PARTICLES ─────────────────────────────────────────────────────────────────
 #    Each particle: [x, y, vx, vy, charge, mass]
 particles = [
-    [200.0, 700.0, 0.0, -80.0,  -1.0, 1.0],   # negative (blue)
+    [480.0, 800.0, 0.0, -70.0,  -1.0, 1.0],
+    [420.0, 800.0, 0.0, -70.0,  +1.0, 1.0],
 ]
 
 # ── FIELD ZONES ───────────────────────────────────────────────────────────────
@@ -32,7 +33,7 @@ B_in  = [0, 0, -1]
 electric_zones = [
     {
         "shape"  : "",
-        "x": 0, "y": 0, "w": 400, "h": 400,
+        "x": 0, "y": 0, "w": 500, "h": 500,
         "Ex": 5e6, "Ey": 0.0,          # V/m — uniform E field components
     },
 ]
@@ -40,8 +41,8 @@ electric_zones = [
 magnetic_zones = [
     {
         "shape"     : "rectangle",
-        "x": 0, "y": 0, "w": 500, "h": 500,
-        "B"         : 3,              # magnitude (T, scaled)
+        "x": 0, "y": 0, "w": WIDTH, "h": 400,
+        "B"         : 15000,              # magnitude (T, scaled)
         "direction" : B_in,             # choose B_out or B_in
     },
 ]
@@ -166,6 +167,7 @@ def magnetic_field_forces(particles):
                 forces[i][0] += fx
                 forces[i][1] += fy
 
+    print(forces)
     return forces
 
 # ── MOVEMENT ──────────────────────────────────────────────────────────────────
