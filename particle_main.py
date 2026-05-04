@@ -19,6 +19,10 @@ particles = [
     [420.0, 800.0, 0.0, -70.0,  +1.0, 1.0],
 ]
 
+# ── PARTICLE TRACES ───────────────────────────────────────────────────────────
+MAX_TRACE_LENGTH = 70
+traces = [[] for _ in particles]
+
 # ── FIELD ZONES ───────────────────────────────────────────────────────────────
 # Zone shapes: "circle"    → cx, cy, r
 #              "rectangle" → x, y, w, h   (top-left corner)
@@ -42,7 +46,7 @@ magnetic_zones = [
     {
         "shape"     : "rectangle",
         "x": 0, "y": 0, "w": WIDTH, "h": 400,
-        "B"         : 15000,              # magnitude (T, scaled)
+        "B"         : 20000,              # magnitude (T, scaled)
         "direction" : B_in,             # choose B_out or B_in
     },
 ]
@@ -215,6 +219,11 @@ def update_particles(particles, coulomb_forces, electric_forces, magnetic_forces
             y  = HEIGHT - RADIUS
             vy = -abs(vy)
 
+        # Store trace
+        traces[i].append((x, y))
+        if len(traces[i]) > MAX_TRACE_LENGTH:
+            traces[i].pop(0)
+
         particles[i] = [x, y, vx, vy, q, m]
 
 # ── DRAW ──────────────────────────────────────────────────────────────────────
@@ -246,6 +255,12 @@ def draw(screen, particles):
     for zone in magnetic_zones:
         draw_zone(screen, zone, (0, 200, 255))    # cyan tint  — B field
 
+    # Draw traces
+    for i, trail in enumerate(traces):
+        if len(trail) > 1:
+            color = (220, 60, 60) if particles[i][4] > 0 else (60, 100, 220)
+            pygame.draw.lines(screen, color, False, trail, 2)
+
     for x, y, _, _, q, _ in particles:
         color = (220, 60, 60) if q > 0 else (60, 100, 220)
         pygame.draw.circle(screen, color, (int(x), int(y)), RADIUS)
@@ -258,6 +273,7 @@ screen = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("Coulomb + E & B Field Simulation")
 clock  = pygame.time.Clock()
 
+pause = False
 running = True
 while running:
     dt = clock.tick(FPS) / 1000.0
@@ -265,12 +281,17 @@ while running:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
+        elif event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_SPACE:
+                pause = not pause
 
-    c_forces = compute_coulomb_forces(particles)
-    e_forces = electric_field_forces(particles)
-    b_forces = magnetic_field_forces(particles)
+    if not pause:
+        c_forces = compute_coulomb_forces(particles)
+        e_forces = electric_field_forces(particles)
+        b_forces = magnetic_field_forces(particles)
 
-    update_particles(particles, c_forces, e_forces, b_forces, dt)
+        update_particles(particles, c_forces, e_forces, b_forces, dt)
+
     draw(screen, particles)
 
 pygame.quit()
